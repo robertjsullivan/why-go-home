@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
+	"time"
 )
 
 var _ = Describe("Election", func() {
@@ -68,19 +69,51 @@ var _ = Describe("Election", func() {
 	})
 
 	It("initiates a vote when the timeout expires", func(){
+		var members []Member
+		member := Member{1, "some-address",}
+		members = append(members, member)
+		member = Member{2, "some-address",}
+		members = append(members, member)
 
+		n := NewNode(3, "some-address", members)
+
+		nodeServiceMock := &NodeServiceMock{}
+		go n.Start(nodeServiceMock)
+		time.Sleep(time.Duration(400) * time.Millisecond)
+		n.Run = false;
+		Expect(nodeServiceMock.InitiatedVoting).To(BeTrue())
 	})
 
 	It("does not initiate if already voted", func(){
+		var members []Member
+		member := Member{1, "some-address",}
+		members = append(members, member)
+		member = Member{2, "some-address",}
+		members = append(members, member)
 
+		n := NewNode(3, "some-address", members)
+		n.Voted = true
+		nodeServiceMock := &NodeServiceMock{}
+		go n.Start(nodeServiceMock)
+		time.Sleep(time.Duration(400) * time.Millisecond)
+		n.Run = false;
+		Expect(nodeServiceMock.InitiatedVoting).ToNot(BeTrue())
 	})
 
 	It("does not initiate if it receives a heartbeat", func(){
+		var members []Member
+		member := Member{1, "some-address",}
+		members = append(members, member)
+		member = Member{2, "some-address",}
+		members = append(members, member)
 
-	})
-
-	It("votes if it hasn't already voted this term", func(){
-
+		n := NewNode(3, "some-address", members)
+		n.Heartbeat = true
+		nodeServiceMock := &NodeServiceMock{}
+		go n.Start(nodeServiceMock)
+		time.Sleep(time.Duration(400) * time.Millisecond)
+		n.Run = false;
+		Expect(nodeServiceMock.InitiatedVoting).ToNot(BeTrue())
 	})
 
 	It("it records a heartbeat", func(){

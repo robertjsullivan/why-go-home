@@ -8,6 +8,7 @@ import (
 
 func main() {
 	member_count := 5;
+	nodeService := &election.NodeServiceImpl{}
 	fmt.Printf("Running Leader Election with %d members.\n", member_count)
 	var members []election.Member
 	for i := 0; i < member_count; i++ {
@@ -19,7 +20,7 @@ func main() {
 
 	for _ , member := range members {
 		node := election.NewNode(member.Id, member.WebsocketAddress, members)
-		go node.Start()
+		go node.Start(nodeService)
 	}
 
 	for true{
