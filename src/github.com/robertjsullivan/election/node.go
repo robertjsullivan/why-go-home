@@ -16,14 +16,14 @@ import (
 
 type Node struct{
 	sync.Mutex
-	id int
-	websocketAddress string
-	term int
-	voted bool
-        members []Member
-	timeout int
-	heartbeat bool
-	votes int
+	Id               int
+	WebsocketAddress string
+	term             int
+	Voted            bool
+	Members          []Member
+	timeout          int
+	Heartbeat        bool
+	votes            int
 }
 
 type Member struct{
@@ -43,18 +43,19 @@ var upgrader = websocket.Upgrader{
 }
 
 func NewNode(id int, address string, members []Member) *Node {
-	return &Node{id: id, websocketAddress: address, term: 0, voted: false, members: members, timeout: generateRandomTimeout(), heartbeat: false, votes: 0}
+	return &Node{Id: id, WebsocketAddress: address, term: 0, Voted: false, Members: members, timeout: GenerateRandomTimeout(), Heartbeat: false, votes: 0}
 }
 
 
-func (n *Node) voteHandler(w http.ResponseWriter, r *http.Request) {
+func (n *Node) VoteHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		panic(err)
 	}
 
-	if r.Form.Get("startElection") == "true"{
 
+	switch {
+	case r.Form.Get("startElection") == "true":
 		id, err :=  strconv.Atoi(r.Form.Get("id"))
 		if err != nil {
 			panic(err)
@@ -64,14 +65,14 @@ func (n *Node) voteHandler(w http.ResponseWriter, r *http.Request) {
 			panic(err)
 		}
 		myVote := Vote {
-			Sender_id: n.id,
+			Sender_id: n.Id,
 			Vote_id: -1,
 			Term: term,
 		}
 		n.Lock()
-		if term > n.term || n.voted == false {
+		if term > n.term || n.Voted == false {
 			n.term = term
-			n.voted = true
+			n.Voted = true
 			myVote.Vote_id = id
 		}
 		n.Unlock()
@@ -81,9 +82,8 @@ func (n *Node) voteHandler(w http.ResponseWriter, r *http.Request) {
 			panic(err)
 		}
 		w.Write(jsonArr)
-
-	}else if r.Form.Get("heartbeat") == "true" {
-		n.heartbeat = true
+	case r.Form.Get("heartbeat") == "true":
+		n.Heartbeat = true
 		w.Write([]byte{'o','k'})
 	}
 }
@@ -93,23 +93,12 @@ func (n *Node) Start(){
 
 	go n.setupHttpEndpoint()
 
-
-
-	//c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	//if err != nil {
-	//	log.Fatal("dial:", err)
-	//}
-	//defer c.Close()
-
 	for true{
-		n.heartbeat = false
+		n.Heartbeat = false
 		n.votes = 0
-		//fmt.Printf(time.Duration(n.timeout) * time.Millisecond)
-		//time.Sleep(time.Duration(n.timeout) * time.Millisecond)
-		//TODO switch to millisecond
-		time.Sleep(time.Duration(n.timeout) * time.Second)
+		time.Sleep(time.Duration(n.timeout) * time.Millisecond)
 
-		if !n.voted && !n.heartbeat {
+		if !n.Voted && !n.Heartbeat {
 			leader := n.initiateVoting()
 			if leader {
 				n.heartbeater()
@@ -118,19 +107,18 @@ func (n *Node) Start(){
 	}
 }
 
-func generateRandomTimeout() int {
-	//TODO switch to 150 to 350
-	//return rand.Intn(200) + 150
-	return rand.Intn(20)+1
+func GenerateRandomTimeout() int {
+	return rand.Intn(200) + 150
+	//return rand.Intn(20)+1
 }
 
 func (n *Node) initiateVoting() bool {
-	fmt.Printf("initiating voting for id: %d\n",n.id)
+	fmt.Printf("initiating voting for id: %d\n",n.Id)
 	n.term++;
-	for _, member := range n.members{
+	for _, member := range n.Members {
 		uri := fmt.Sprintf("http://127.0.0.1%s/%d", member.WebsocketAddress, member.Id)
 		resp, err := http.PostForm(uri,
-			url.Values{"startElection": {"true"}, "id": {strconv.Itoa(n.id)}, "term": {strconv.Itoa(n.term)}})
+			url.Values{"startElection": {"true"}, "id": {strconv.Itoa(n.Id)}, "term": {strconv.Itoa(n.term)}})
 		if err != nil {
 			panic(err)
 		}
@@ -148,11 +136,11 @@ func (n *Node) initiateVoting() bool {
 			panic(err)
 		}
 		n.Lock()
-		if vote.Vote_id == n.id{
-			fmt.Printf("id: %d received vote from %d term: %d\n",n.id,vote.Sender_id,vote.Term)
+		if vote.Vote_id == n.Id {
+			fmt.Printf("id: %d received vote from %d term: %d\n",n.Id,vote.Sender_id,vote.Term)
 			n.votes++
 		}else{
-			fmt.Printf("id: %d denied vote from %d term: %d\n",n.id,vote.Sender_id,vote.Term)
+			fmt.Printf("id: %d denied vote from %d term: %d\n",n.Id,vote.Sender_id,vote.Term)
 		}
 		n.Unlock()
 
@@ -160,8 +148,8 @@ func (n *Node) initiateVoting() bool {
 
 	}
 
-	if float64(n.votes) > math.Ceil(float64(len(n.members) / 2)){
-		fmt.Printf("id: %d has won the election.  time to heartbeat.\n", n.id)
+	if float64(n.votes) > math.Ceil(float64(len(n.Members) / 2)){
+		fmt.Printf("id: %d has won the election.  time to heartbeat.\n", n.Id)
 		return true;
 	}
 
@@ -171,7 +159,7 @@ func (n *Node) initiateVoting() bool {
 func (n *Node) heartbeater(){
 	fmt.Printf("heart beating\n");
 	for true {
-		for _, member := range n.members{
+		for _, member := range n.Members {
 			uri := fmt.Sprintf("http://127.0.0.1%s/%d", member.WebsocketAddress, member.Id)
 			//http.PostForm(url,)
 			_, err := http.PostForm(uri,
@@ -194,10 +182,10 @@ func (n *Node) heartbeater(){
 func (n *Node) setupHttpEndpoint(){
 
 
-	uri := fmt.Sprintf("/%d", n.id)
-	http.HandleFunc(uri, n.voteHandler)
-	fmt.Printf("created endpoint for uri"+n.websocketAddress+uri+"\n")
-	err := http.ListenAndServe(n.websocketAddress, nil)
+	uri := fmt.Sprintf("/%d", n.Id)
+	http.HandleFunc(uri, n.VoteHandler)
+	fmt.Printf("created endpoint for uri"+n.WebsocketAddress +uri+"\n")
+	err := http.ListenAndServe(n.WebsocketAddress, nil)
 
 	if err != nil {
 		panic("ListenAndServe: " + err.Error())
